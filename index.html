@@ -109,6 +109,17 @@
             flex:1;
         }
 
+        .funcionario-info h3{
+            margin-bottom:2px;
+        }
+
+        .funcionario-cargo {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+            margin-bottom: 8px;
+        }
+
         .funcionario-actions{
             display:flex;
             flex-direction:column;
@@ -136,6 +147,7 @@
             margin:20px auto;
             border-radius: 8px;
             overflow: hidden;
+            background: #eee;
         }
 
         .qrcode-container {
@@ -197,6 +209,9 @@
             <label>Nome:</label>
             <input type="text" id="nome" required>
 
+            <label>Cargo:</label>
+            <input type="text" id="cargo" placeholder="Ex: Analista de RH" required>
+
             <label>Foto:</label>
             <input type="file" id="foto" accept="image/*" required>
 
@@ -225,7 +240,7 @@
 
 <script>
 let funcionarios = [];
-let html5QrCode = null; // Variável global para controlar a instância da câmera
+let html5QrCode = null;
 
 try {
     const dadosSalvos = localStorage.getItem("funcionarios");
@@ -282,7 +297,6 @@ document.addEventListener("DOMContentLoaded", function(){
     if(horarioPresenca) document.getElementById("horarioEntrada").value = horarioPresenca;
     atualizarInfoMes();
 
-    // Inicializa a instância do scanner (mas não liga a câmera ainda)
     html5QrCode = new Html5Qrcode("reader");
 
     const cadastroForm = document.getElementById("cadastroForm");
@@ -291,11 +305,14 @@ document.addEventListener("DOMContentLoaded", function(){
 
         try {
             const nomeInput = document.getElementById("nome");
+            const cargoInput = document.getElementById("cargo");
             const fotoInput = document.getElementById("foto");
+            
             const nome = nomeInput.value.trim();
+            const cargo = cargoInput.value.trim();
 
-            if(nome.length === 0){
-                alert("Digite o nome do funcionário.");
+            if(nome.length === 0 || cargo.length === 0){
+                alert("Preencha todos os campos corretamente.");
                 return false;
             }
 
@@ -355,6 +372,7 @@ document.addEventListener("DOMContentLoaded", function(){
             const novoFuncionario = {
                 id: new Date().getTime(),
                 nome: nome,
+                cargo: cargo, // Guardando o cargo no objeto do funcionário
                 foto: fotoBase64,
                 presencas: {},
                 justificativas: {}
@@ -375,27 +393,34 @@ document.addEventListener("DOMContentLoaded", function(){
     renderFuncionarios();
 });
 
-// Funções para controle manual da câmera
 function ligarCamera() {
-    Html5Qrcode.getCameras().then(devices => {
-        if(devices && devices.length){
-            // Usa de preferência a câmera traseira (environment) se disponível, senão pega a primeira
-            const cameraId = devices.length > 1 ? { facingMode: "environment" } : devices[0].id;
-            
-            html5QrCode.start(
-                cameraId,
-                { fps: 10, qrbox: 250 },
-                onScanSuccess
-            ).catch(err => {
-                alert("Não foi possível iniciar a câmera. Verifique as permissões do navegador.");
-                console.error(err);
-            });
-        } else {
-            alert("Nenhuma câmera encontrada neste dispositivo.");
-        }
-    }).catch(err => {
-        alert("Erro ao solicitar acesso à câmera.");
-        console.error(err);
+    if (html5QrCode && html5QrCode.isScanning) {
+        desligarCamera();
+    }
+
+    html5QrCode.start(
+        { facingMode: "environment" }, 
+        { fps: 10, qrbox: 250 },
+        onScanSuccess
+    ).catch(err => {
+        console.warn("Tentando método alternativo de câmera...", err);
+        Html5Qrcode.getCameras().then(devices => {
+            if(devices && devices.length){
+                html5QrCode.start(
+                    devices[0].id,
+                    { fps: 10, qrbox: 250 },
+                    onScanSuccess
+                ).catch(lastError => {
+                    alert("Erro ao acessar a câmera. Garanta permissão ao site e o uso de HTTPS.");
+                    console.error(lastError);
+                });
+            } else {
+                alert("Nenhuma câmera detectada.");
+            }
+        }).catch(deviceError => {
+            alert("Erro de permissão de mídia.");
+            console.error(deviceError);
+        });
     });
 }
 
@@ -431,10 +456,12 @@ function renderFuncionarios(){
         const div = document.createElement("div");
         div.className = "funcionario";
 
+        // Adicionado a linha exibindo o cargo na listagem da página
         div.innerHTML = `
             <img src="${funcionario.foto}" alt="Foto">
             <div class="funcionario-info">
                 <h3>${funcionario.nome}</h3>
+                <div class="funcionario-cargo">${funcionario.cargo || 'Não informado'}</div>
                 <p>Status de hoje: ${status}</p>
                 <div id="qrcode-${funcionario.id}" class="qrcode-container"></div>
             </div>
@@ -508,6 +535,7 @@ function excluirFuncionario(id){
     alert("Funcionário excluído.");
 }
 
+// FUNÇÃO ATUALIZADA: Desenha o Cargo no arquivo PNG gerado
 function baixarCracha(id){
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
@@ -532,17 +560,25 @@ function baixarCracha(id){
     foto.src = funcionario.foto;
 
     foto.onload = function(){
+        // Desenha a foto centralizada
         ctx.drawImage(foto,125,90,150,150);
 
+        // Nome do Funcionário
         ctx.fillStyle = "#000";
         ctx.font = "bold 24px Arial";
         ctx.textAlign = "center";
-        ctx.fillText(funcionario.nome,200,290);
+        ctx.fillText(funcionario.nome,200,285);
 
+        // AJUSTE: Desenha o Cargo logo abaixo do nome (em cinza e itálico)
+        ctx.fillStyle = "#666666";
+        ctx.font = "italic 18px Arial";
+        ctx.fillText(funcionario.cargo || "Funcionário", 200, 315);
+
+        // QR Code movido ligeiramente para baixo para dar espaço ao cargo
         const qrCanvas = document.querySelector(`#qrcode-${funcionario.id} canvas`) || document.querySelector(`#qrcode-${funcionario.id} img`);
 
         if(qrCanvas){
-            ctx.drawImage(qrCanvas,150,340,100,100);
+            ctx.drawImage(qrCanvas,150,355,100,100);
         }
 
         const link = document.createElement("a");
@@ -553,15 +589,15 @@ function baixarCracha(id){
 }
 
 function exportarExcel(){
-    let csv = "\ufeffNome,Data,Status,Justificativa\n";
+    let csv = "\ufeffNome,Cargo,Data,Status,Justificativa\n";
 
     funcionarios.forEach(funcionario => {
         for(let data in funcionario.presencas){
-            csv += `"${funcionario.nome}","${data}","${funcionario.presencas[data]}","${funcionario.justificativas[data] || ""}"\n`;
+            csv += `"${funcionario.nome}","${funcionario.cargo || ""}","${data}","${funcionario.presencas[data]}","${funcionario.justificativas[data] || ""}"\n`;
         }
         for(let data in funcionario.justificativas){
             if(!funcionario.presencas[data]){
-                csv += `"${funcionario.nome}","${data}","Falta","${funcionario.justificativas[data]}"\n`;
+                csv += `"${funcionario.nome}","${funcionario.cargo || ""}","${data}","Falta","${funcionario.justificativas[data]}"\n`;
             }
         }
     });
@@ -581,10 +617,7 @@ function onScanSuccess(decodedText){
         return;
     }
 
-    // Desliga a câmera automaticamente após uma leitura bem-sucedida
     desligarCamera();
-
-    // Executa o registro da presença
     marcarPresenca(funcionario.id);
 }
 </script>
