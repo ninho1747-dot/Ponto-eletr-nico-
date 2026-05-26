@@ -86,6 +86,14 @@
             background: #c0392b;
         }
 
+        .btn-warning {
+            background: #f1c40f;
+            color: #333;
+        }
+        .btn-warning:hover {
+            background: #d4ac0d;
+        }
+
         .funcionario{
             display:flex;
             gap:20px;
@@ -372,7 +380,7 @@ document.addEventListener("DOMContentLoaded", function(){
             const novoFuncionario = {
                 id: new Date().getTime(),
                 nome: nome,
-                cargo: cargo, // Guardando o cargo no objeto do funcionário
+                cargo: cargo,
                 foto: fotoBase64,
                 presencas: {},
                 justificativas: {}
@@ -456,7 +464,7 @@ function renderFuncionarios(){
         const div = document.createElement("div");
         div.className = "funcionario";
 
-        // Adicionado a linha exibindo o cargo na listagem da página
+        // ADICIONADO: Botão "Lançar Falta Manual" nas ações do funcionário
         div.innerHTML = `
             <img src="${funcionario.foto}" alt="Foto">
             <div class="funcionario-info">
@@ -467,9 +475,10 @@ function renderFuncionarios(){
             </div>
             <div class="funcionario-actions">
                 <button onclick="marcarPresenca(${funcionario.id})">Marcar Presença</button>
+                <button onclick="lancarFaltaManual(${funcionario.id})" class="btn-warning">Lançar Falta Manual</button>
                 <button onclick="justificarFalta(${funcionario.id})">Justificar Falta</button>
                 <button onclick="baixarCracha(${funcionario.id})">Baixar Crachá</button>
-                <button onclick="excluirFuncionario(${funcionario.id})">Excluir</button>
+                <button onclick="excluirFuncionario(${funcionario.id})" class="btn-danger">Excluir</button>
             </div>
         `;
 
@@ -510,6 +519,24 @@ function marcarPresenca(id){
     alert(`Presença registrada para ${funcionario.nome}`);
 }
 
+// NOVA FUNÇÃO: Lançar falta diretamente sem precisar do QR Code
+function lancarFaltaManual(id){
+    const funcionario = funcionarios.find(f => f.id === id);
+    if(!funcionario) return;
+
+    const confirmar = confirm(`Deseja lançar FALTA manualmente para ${funcionario.nome} hoje?`);
+    if(!confirmar) return;
+
+    const hoje = new Date().toLocaleDateString("pt-BR");
+    
+    // Força o status de presença para "Falta"
+    funcionario.presencas[hoje] = "Falta";
+
+    salvarDados();
+    renderFuncionarios();
+    alert(`Falta registrada manualmente para ${funcionario.nome}`);
+}
+
 function justificarFalta(id){
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
@@ -519,6 +546,11 @@ function justificarFalta(id){
 
     const hoje = new Date().toLocaleDateString("pt-BR");
     funcionario.justificativas[hoje] = justificativa.trim() || "Sem justificativa";
+
+    // Opcional: Garante que o status base do dia seja Falta ao justificar
+    if(!funcionario.presencas[hoje]) {
+        funcionario.presencas[hoje] = "Falta";
+    }
 
     salvarDados();
     renderFuncionarios();
@@ -535,7 +567,6 @@ function excluirFuncionario(id){
     alert("Funcionário excluído.");
 }
 
-// FUNÇÃO ATUALIZADA: Desenha o Cargo no arquivo PNG gerado
 function baixarCracha(id){
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
@@ -560,21 +591,17 @@ function baixarCracha(id){
     foto.src = funcionario.foto;
 
     foto.onload = function(){
-        // Desenha a foto centralizada
         ctx.drawImage(foto,125,90,150,150);
 
-        // Nome do Funcionário
         ctx.fillStyle = "#000";
         ctx.font = "bold 24px Arial";
         ctx.textAlign = "center";
         ctx.fillText(funcionario.nome,200,285);
 
-        // AJUSTE: Desenha o Cargo logo abaixo do nome (em cinza e itálico)
         ctx.fillStyle = "#666666";
         ctx.font = "italic 18px Arial";
         ctx.fillText(funcionario.cargo || "Funcionário", 200, 315);
 
-        // QR Code movido ligeiramente para baixo para dar espaço ao cargo
         const qrCanvas = document.querySelector(`#qrcode-${funcionario.id} canvas`) || document.querySelector(`#qrcode-${funcionario.id} img`);
 
         if(qrCanvas){
