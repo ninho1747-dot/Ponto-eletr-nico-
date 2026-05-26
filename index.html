@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Ponto Eletrônico</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f6f9;
+      color: #333;
+    }
+
+    header {
+      background: #4a90e2;
+      color: white;
+      padding: 20px;
+      text-align: center;
+      font-size: 1.5em;
+      font-weight: bold;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    main {
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
+    }
+
+    h2 {
+      color: #4a90e2;
+      border-bottom: 2px solid #4a90e2;
+      padding-bottom: 5px;
+    }
+
+    form, .config, .funcionario {
+      background: white;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 15px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    input[type="text"], input[type="file"], input[type="date"] {
+      width: 100%;
+      padding: 8px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    button {
+      background: #4a90e2;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #357ab8;
+    }
+
+    .funcionario {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .funcionario img {
+      border-radius: 50%;
+      width: 80px;
+      height: 80px;
+      object-fit: cover;
+      border: 3px solid #4a90e2;
+    }
+
+    .funcionario-info {
+      flex: 1;
+    }
+
+    .funcionario-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #listaFuncionarios {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+</head>
+<body>
+  <header>Sistema de Ponto Eletrônico</header>
+  <main>
+    <!-- Configuração do mês -->
+    <div class="config">
+      <h2>Configuração do Mês</h2>
+      Data de início: <input type="date" id="inicioMes">
+      <button onclick="ajustarMes()">Salvar</button>
+      <p id="infoMes"></p>
+      <button onclick="exportarExcel()">Exportar Registros para Excel</button>
+    </div>
+
+    <!-- Cadastro de Funcionário -->
+    <div class="cadastro">
+      <h2>Cadastrar Funcionário</h2>
+      <form id="cadastroForm">
+        Nome: <input type="text" id="nome" required><br>
+        Foto: <input type="file" id="foto" accept="image/*" required><br>
+        <button type="submit">Cadastrar</button>
+      </form>
+    </div>
+
+    <h2>Funcionários</h2>
+    <div id="listaFuncionarios"></div>
+  </main>
+
+  <script>
+    const funcionarios = [];
+    const horarioPresenca = "14:20";
+    let inicioMes = null;
+
+    function ajustarMes(){
+      inicioMes = new Date(document.getElementById("inicioMes").value);
+      document.getElementById("infoMes").innerText = 
+        "O ciclo de registros começa em " + inicioMes.toLocaleDateString("pt-BR");
+    }
+
+    document.getElementById("cadastroForm").addEventListener("submit", function(e){
+      e.preventDefault();
+      const nome = document.getElementById("nome").value;
+      const fotoInput = document.getElementById("foto");
+      const fotoURL = URL.createObjectURL(fotoInput.files[0]);
+
+      const funcionario = {
+        id: Date.now(),
+        nome,
+        foto: fotoURL,
+        presencas: {},
+        justificativas: {}
+      };
+      funcionarios.push(funcionario);
+      renderFuncionarios();
+    });
+
+    function renderFuncionarios(){
+      const lista = document.getElementById("listaFuncionarios");
+      lista.innerHTML = "";
+      funcionarios.forEach(f => {
+        const div = document.createElement("div");
+        div.className = "funcionario";
+        div.innerHTML = `
+          <img src="${f.foto}" alt="Foto de ${f.nome}">
+          <div class="funcionario-info">
+            <strong>${f.nome}</strong><br>
+            <div id="qrcode-${f.id}"></div>
+          </div>
+          <div class="funcionario-actions">
+            <button onclick="marcarPresenca(${f.id})">Escanear QR</button>
+            <button onclick="justificarFalta(${f.id})">Justificar Falta</button>
+            <button onclick="excluirFuncionario(${f.id})">Excluir</button>
+            <button onclick="baixarCracha(${f.id})">Baixar Crachá</button>
+          </div>
+        `;
+        lista.appendChild(div);
+
+        new QRCode(document.getElementById("qrcode-"+f.id), {
+          text: "Funcionario-" + f.id,
+          width: 80,
+          height: 80
+        });
+      });
+    }
+
+    function marcarPresenca(id){
+      const funcionario = funcionarios.find(f => f.id === id);
+      const agora = new Date();
+      const dia = agora.getDate();
+      const horaAtual = agora.getHours().toString().padStart(2,"0") + ":" + agora.getMinutes().toString().padStart(2,"0");
+
+      if(inicioMes && agora >= inicioMes){
+        if(horaAtual === horarioPresenca){
+          funcionario.presencas[dia] = "Presente às " + horaAtual;
+        } else {
+          funcionario.presencas[dia] = "Fora do horário (" + horaAtual + ")";
+        }
+        alert("Presença registrada para " + funcionario.nome + " no dia " + dia);
+      } else {
+        alert("O ciclo ainda não começou. Data de início: " + inicioMes.toLocaleDateString("pt-BR"));
+      }
+    }
+
+    function justificarFalta(id){
+      const funcionario = funcionarios.find(f => f.id === id);
+      const dia = new Date().getDate();
+      const justificativa = prompt("Digite a justificativa da falta:");
+      funcionario.justificativas[dia] = justificativa || "Sem justificativa";
+      alert("Falta justificada para " + funcionario.nome + " no dia " + dia);
+    }
+
+    function excluirFuncionario(id){
+      const index = funcionarios.findIndex(f => f.id === id);
+      if(index > -1){
+        funcionarios.splice(index,1);
+      }
+      renderFuncionarios();
+    }
+
+    function baixarCracha(id){
+      const funcionario = funcionarios.find(f => f.id === id);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 300;
+      canvas.height = 400;
+      const ctx = canvas.getContext("2d");
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+
+      ctx.fillStyle = "#4a90e2";
+      ctx.font = "20px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(funcionario.nome, canvas.width/2, 30);
+
+      const foto = new Image();
+      foto.src = funcionario.foto;
+      foto.onload = () => {
+        ctx.drawImage(foto, 100, 50, 100, 100);
+
+        const qrCanvas = document.querySelector(`#qrcode-${funcionario.id} canvas`);
+        if(qrCanvas){
+          ctx.drawImage(qrCanvas, 75, 180, 150, 150);
+        }
+
+        const link = document.createElement("a");
+        link.download = `cracha_${funcionario.nome}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      };
+    }
+
+    function exportarExcel(){
+      let csv = "Nome,Dia,Presença,Justificativa\n";
+      funcionarios.forEach(f => {
+        for(const dia in f.presencas){
+          csv += `${f.nome},${dia},${f.presencas[dia]},${f.justificativas[dia] || ""}\n`;
+        }
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "registros_ponto.csv";
+      link.click();
+    }
+  </script>
+</body>
+</html>
