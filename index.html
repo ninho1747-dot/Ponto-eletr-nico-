@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ponto Eletrônico - Chamadas por Categoria</title>
+    <title>Ponto Eletrônico - Firebase por Categoria</title>
 
     <style>
         *{
@@ -263,7 +263,7 @@
 <body>
 
 <header>
-    Sistema de Ponto Eletrônico por Chamadas
+    Sistema de Ponto Eletrônico (Firebase)
 </header>
 
 <main>
@@ -276,7 +276,7 @@
             <div style="flex: 1;">
                 <input type="text" id="novaCategoria" placeholder="Digite o nome da categoria/turma">
             </div>
-            <button onclick="adicionarCategoria()" class="btn-success" style="margin-bottom: 15px; height: 45px;">Criar Lista</button>
+            <button id="btnCriarCategoria" class="btn-success" style="margin-bottom: 15px; height: 45px;">Criar Lista</button>
         </div>
 
         <label>Suas Categorias Atuais:</label>
@@ -300,10 +300,10 @@
             </div>
         </div>
 
-        <button onclick="ajustarMes()">Salvar Ciclo e Horários</button>
+        <button id="btnSalvarConfig">Salvar Ciclo e Horários</button>
         <p id="infoMes" style="margin-top:15px;font-weight:bold;"></p>
         <br>
-        <button onclick="exportarExcel()">Exportar Relatório CSV Geral</button>
+        <button id="btnExportarExcel">Exportar Relatório CSV Geral</button>
     </div>
 
     <div class="card">
@@ -344,47 +344,93 @@
         <p style="text-align: center; color: #666;">Clique no botão abaixo para ativar a câmera do dispositivo e registrar o ponto do turno atual.</p>
         
         <div class="camera-controls">
-            <button onclick="ligarCamera()" class="btn-success">Abrir Câmera</button>
-            <button onclick="desligarCamera()" class="btn-danger">Fechar Câmera</button>
+            <button id="btnLigarCamera" class="btn-success">Abrir Câmera</button>
+            <button id="btnDesligarCamera" class="btn-danger">Fechar Câmera</button>
         </div>
         
         <div id="reader"></div>
     </div>
 
 </main>
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, set, get, child, onValue, update, remove } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+// Suas credenciais do Firebase fornecidas
+const firebaseConfig = {
+  apiKey: "AIzaSyDfFKVTqql-uzRc-c-xx1uhTW3FX9U_QTg",
+  authDomain: "pontoeletronico-f5e62.firebaseapp.com",
+  projectId: "pontoeletronico-f5e62",
+  storageBucket: "pontoeletronico-f5e62.firebasestorage.app",
+  messagingSenderId: "1054120604898",
+  appId: "1:1054120604898:web:a644a1cce854fe76ad9abb"
+};
+
+// Inicialização do Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Variáveis Globais de Estado do App
 let funcionarios = [];
 let categorias = ["Geral", "Pintores", "Garis", "Motoristas"];
 let categoriaAtiva = "Geral"; 
 let html5QrCode = null;
 
-try {
-    const dadosSalvos = localStorage.getItem("funcionarios");
-    if(dadosSalvos) funcionarios = JSON.parse(dadosSalvos);
-    
-    const categoriasSalvas = localStorage.getItem("categorias");
-    if(categoriasSalvas) {
-        categorias = JSON.parse(categoriasSalvas);
-    } else {
-        localStorage.setItem("categorias", JSON.stringify(categorias));
-    }
-} catch(e) {
-    console.error("Erro ao carregar dados:", e);
+let inicioMes = "";
+let horarioManha = "08:00";
+let horarioTarde = "14:00";
+
+// Sincronização em tempo real com o Firebase Database
+function iniciarSincronizacaoFirebase() {
+    // 1. Escuta Configurações Gerais
+    onValue(ref(db, 'configuracoes'), (snapshot) => {
+        const dados = snapshot.val();
+        if(dados) {
+            inicioMes = dados.inicioMes || "";
+            horarioManha = dados.horarioManha || "08:00";
+            horarioTarde = dados.horarioTarde || "14:00";
+            
+            document.getElementById("inicioMes").value = inicioMes;
+            document.getElementById("horarioManha").value = horarioManha;
+            document.getElementById("horarioTarde").value = horarioTarde;
+            atualizarInfoMes();
+        }
+    });
+
+    // 2. Escuta Categorias
+    onValue(ref(db, 'categorias'), (snapshot) => {
+        const dados = snapshot.val();
+        if(dados && Array.isArray(dados)) {
+            categorias = dados;
+        } else {
+            categorias = ["Geral", "Pintores", "Garis", "Motoristas"];
+        }
+        renderCategoriasConfig();
+    });
+
+    // 3. Escuta Funcionários
+    onValue(ref(db, 'funcionarios'), (snapshot) => {
+        const dados = snapshot.val();
+        funcionarios = [];
+        if(dados) {
+            // Converte objeto do Firebase de volta para o formato de array do app
+            Object.keys(dados).forEach(key => {
+                let func = dados[key];
+                if(!func.presencas) func.presencas = {};
+                if(!func.justificativas) func.justificativas = {};
+                funcionarios.push(func);
+            });
+        }
+        renderFuncionarios();
+    });
 }
 
-let inicioMes = localStorage.getItem("inicioMes") || "";
-let horarioManha = localStorage.getItem("horarioManha") || "08:00";
-let horarioTarde = localStorage.getItem("horarioTarde") || "14:00";
-
-function salvarDados(){
-    try {
-        localStorage.setItem("funcionarios", JSON.stringify(funcionarios));
-        localStorage.setItem("categorias", JSON.stringify(categorias));
-        localStorage.setItem("inicioMes", inicioMes);
-        localStorage.setItem("horarioManha", horarioManha);
-        localStorage.setItem("horarioTarde", horarioTarde);
-    } catch (e) {
-        alert("Aviso: Limite de armazenamento cheio!");
+function atualizarInfoMes() {
+    const infoMes = document.getElementById("infoMes");
+    if(inicioMes){
+        infoMes.innerHTML = `Ciclo: <strong>${inicioMes.split('-').reverse().join('/')}</strong> | Manhã: <strong>${horarioManha}</strong> | Tarde: <strong>${horarioTarde}</strong>`;
+    } else {
+        infoMes.innerHTML = "Nenhum ciclo configurado no Banco de Dados.";
     }
 }
 
@@ -403,7 +449,14 @@ function renderCategoriasConfig(){
         if(cat !== "Geral") {
             const span = document.createElement("span");
             span.className = "tag-categoria";
-            span.innerHTML = `${cat} <span class="tag-delete" onclick="removerCategoria('${cat}')">X</span>`;
+            span.textContent = cat + " ";
+            
+            const btnDel = document.createElement("span");
+            btnDel.className = "tag-delete";
+            btnDel.textContent = "X";
+            btnDel.onclick = () => removerCategoria(cat);
+            
+            span.appendChild(btnDel);
             containerTags.appendChild(span);
         }
 
@@ -424,125 +477,6 @@ function renderCategoriasConfig(){
     });
 }
 
-function adicionarCategoria(){
-    const input = document.getElementById("novaCategoria");
-    const nomeCat = input.value.trim();
-    
-    if(!nomeCat) return alert("Digite um nome válido para a categoria.");
-    if(categorias.includes(nomeCat)) return alert("Esta categoria já existe.");
-
-    categorias.push(nomeCat);
-    salvarDados();
-    input.value = "";
-    renderCategoriasConfig();
-}
-
-function removerCategoria(nomeCat){
-    if(confirm(`Tem certeza que deseja apagar a categoria "${nomeCat}"? Os funcionários dela voltarão para a categoria "Geral".`)){
-        funcionarios.forEach(f => {
-            if(f.categoria === nomeCat) f.categoria = "Geral";
-        });
-        categorias = categorias.filter(c => c !== nomeCat);
-        if(categoriaAtiva === nomeCat) categoriaAtiva = "Geral";
-        salvarDados();
-        renderCategoriasConfig();
-        renderFuncionarios();
-    }
-}
-
-function ajustarMes(){
-    inicioMes = document.getElementById("inicioMes").value;
-    horarioManha = document.getElementById("horarioManha").value;
-    horarioTarde = document.getElementById("horarioTarde").value;
-    salvarDados();
-    atualizarInfoMes();
-    alert("Configuração salva!");
-}
-
-function atualizarInfoMes() {
-    const infoMes = document.getElementById("infoMes");
-    if(inicioMes){
-        infoMes.innerHTML = `Ciclo: <strong>${inicioMes.split('-').reverse().join('/')}</strong> | Manhã: <strong>${horarioManha}</strong> | Tarde: <strong>${horarioTarde}</strong>`;
-    } else {
-        infoMes.innerHTML = "Nenhum ciclo configurado.";
-    }
-}
-
-document.addEventListener("DOMContentLoaded", function(){
-    if(inicioMes) document.getElementById("inicioMes").value = inicioMes;
-    if(horarioManha) document.getElementById("horarioManha").value = horarioManha;
-    if(horarioTarde) document.getElementById("horarioTarde").value = horarioTarde;
-    atualizarInfoMes();
-
-    html5QrCode = new Html5Qrcode("reader");
-    renderCategoriasConfig();
-
-    const cadastroForm = document.getElementById("cadastroForm");
-    cadastroForm.onsubmit = async function(e){
-        e.preventDefault();
-        try {
-            const nome = document.getElementById("nome").value.trim();
-            const cargo = document.getElementById("cargo").value.trim();
-            const catSelected = document.getElementById("selectCategoriaCadastro").value;
-            const fotoInput = document.getElementById("foto");
-
-            if(!fotoInput.files[0]) return alert("Selecione uma foto.");
-
-            const converterEComprimirBase64 = (file) => {
-                return new Promise((resolve) => {
-                    const leitor = new FileReader();
-                    leitor.readAsDataURL(file);
-                    leitor.onload = (event) => {
-                        const img = new Image();
-                        img.src = event.target.result;
-                        img.onload = () => {
-                            const canvas = document.createElement('canvas');
-                            let width = img.width, height = img.height;
-                            if (width > height) { if (width > 200) { height *= 200 / width; width = 200; } }
-                            else { if (height > 200) { width *= 200 / height; height = 200; } }
-                            canvas.width = width; canvas.height = height;
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0, width, height);
-                            resolve(canvas.toDataURL('image/jpeg', 0.7));
-                        };
-                    };
-                });
-            };
-
-            const fotoBase64 = await converterEComprimirBase64(fotoInput.files[0]);
-
-            const novoFuncionario = {
-                id: new Date().getTime(),
-                nome: nome,
-                cargo: cargo,
-                categoria: catSelected || "Geral",
-                foto: fotoBase64,
-                presencas: {},
-                justificativas: {}
-            };
-
-            funcionarios.push(novoFuncionario);
-            salvarDados();
-            renderFuncionarios();
-            cadastroForm.reset();
-            alert("Funcionário cadastrado!");
-        } catch(erro) { console.error(erro); }
-    };
-
-    renderFuncionarios();
-});
-
-function ligarCamera() {
-    if (html5QrCode && html5QrCode.isScanning) desligarCamera();
-    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess).catch(() => {
-        Html5Qrcode.getCameras().then(devices => {
-            if(devices?.length) html5QrCode.start(devices[0].id, { fps: 10, qrbox: 250 }, onScanSuccess);
-        });
-    });
-}
-
-function desligarCamera() { if (html5QrCode?.isScanning) html5QrCode.stop(); }
-
 function renderFuncionarios(){
     const lista = document.getElementById("listaFuncionarios");
     if (!lista) return;
@@ -559,19 +493,19 @@ function renderFuncionarios(){
     }
 
     funcionariosFiltrados.forEach(funcionario => {
-        const hoje = new Date().toLocaleDateString("pt-BR");
+        const hoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-"); // Sanitização para chaves Firebase
         
-        if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
-        if(!funcionario.justificativas[hoje]) funcionario.justificativas[hoje] = { manha: null, tarde: null };
+        let pManha = funcionario.presencas && funcionario.presencas[hoje] ? funcionario.presencas[hoje].manha : null;
+        let pTarde = funcionario.presencas && funcionario.presencas[hoje] ? funcionario.presencas[hoje].tarde : null;
+        
+        let jManha = funcionario.justificativas && funcionario.justificativas[hoje] ? funcionario.justificativas[hoje].manha : null;
+        let jTarde = funcionario.justificativas && funcionario.justificativas[hoje] ? funcionario.justificativas[hoje].tarde : null;
 
-        const p = funcionario.presencas[hoje];
-        const j = funcionario.justificativas[hoje];
+        let statusManha = pManha ? `<span class='presente'>${pManha}</span>` : "<span class='falta'>Falta</span>";
+        if(jManha) statusManha += ` (<span class='justificada'>Motivo: ${jManha}</span>)`;
 
-        let statusManha = p.manha ? `<span class='presente'>${p.manha}</span>` : "<span class='falta'>Falta</span>";
-        if(j.manha) statusManha += ` (<span class='justificada'>Motivo: ${j.manha}</span>)`;
-
-        let statusTarde = p.tarde ? `<span class='presente'>${p.tarde}</span>` : "<span class='falta'>Falta</span>";
-        if(j.tarde) statusTarde += ` (<span class='justificada'>Motivo: ${j.tarde}</span>)`;
+        let statusTarde = pTarde ? `<span class='presente'>${pTarde}</span>` : "<span class='falta'>Falta</span>";
+        if(jTarde) statusTarde += ` (<span class='justificada'>Motivo: ${jTarde}</span>)`;
 
         const div = document.createElement("div");
         div.className = "funcionario";
@@ -589,11 +523,11 @@ function renderFuncionarios(){
                 <div id="qrcode-${funcionario.id}" class="qrcode-container"></div>
             </div>
             <div class="funcionario-actions">
-                <button onclick="marcarPresenca(${funcionario.id})">Registrar Ponto (Agora)</button>
-                <button onclick="lancarFaltaManual(${funcionario.id})" class="btn-warning">Falta Manual</button>
-                <button onclick="justificarFalta(${funcionario.id})">Justificar</button>
-                <button onclick="baixarCracha(${funcionario.id})">Crachá</button>
-                <button onclick="excluirFuncionario(${funcionario.id})" class="btn-danger">Excluir</button>
+                <button data-id="${funcionario.id}" class="btn-ponto">Registrar Ponto (Agora)</button>
+                <button data-id="${funcionario.id}" class="btn-warning btn-falta">Falta Manual</button>
+                <button data-id="${funcionario.id}" class="btn-justificar">Justificar</button>
+                <button data-id="${funcionario.id}" class="btn-cracha">Crachá</button>
+                <button data-id="${funcionario.id}" class="btn-danger btn-excluir">Excluir</button>
             </div>
         `;
         lista.appendChild(div);
@@ -602,6 +536,52 @@ function renderFuncionarios(){
             text: `Funcionario-${funcionario.id}`, width: 100, height: 100
         });
     });
+
+    // Mapeamento dinâmico dos botões devido ao escopo do ES Module
+    document.querySelectorAll('.btn-ponto').forEach(b => b.onclick = () => marcarPresenca(Number(b.dataset.id)));
+    document.querySelectorAll('.btn-falta').forEach(b => b.onclick = () => lancarFaltaManual(Number(b.dataset.id)));
+    document.querySelectorAll('.btn-justificar').forEach(b => b.onclick = () => justificarFalta(Number(b.dataset.id)));
+    document.querySelectorAll('.btn-cracha').forEach(b => b.onclick = () => baixarCracha(Number(b.dataset.id)));
+    document.querySelectorAll('.btn-excluir').forEach(b => b.onclick = () => excluirFuncionario(Number(b.dataset.id)));
+}
+
+// Funções de manipulação enviando diretamente ao Firebase
+function adicionarCategoria(){
+    const input = document.getElementById("novaCategoria");
+    const nomeCat = input.value.trim();
+    if(!nomeCat) return alert("Digite um nome válido.");
+    if(categorias.includes(nomeCat)) return alert("Esta categoria já existe.");
+
+    categorias.push(nomeCat);
+    set(ref(db, 'categorias'), categorias).then(() => {
+        input.value = "";
+    });
+}
+
+function removerCategoria(nomeCat){
+    if(confirm(`Excluir a categoria "${nomeCat}"? Os funcionários voltarão para "Geral".`)){
+        funcionarios.forEach(f => {
+            if(f.categoria === nomeCat) {
+                update(ref(db, `funcionarios/${f.id}`), { categoria: "Geral" });
+            }
+        });
+        const novasCategorias = categorias.filter(c => c !== nomeCat);
+        set(ref(db, 'categorias'), novasCategorias).then(() => {
+            if(categoriaAtiva === nomeCat) categoriaAtiva = "Geral";
+        });
+    }
+}
+
+function ajustarMes(){
+    const inicio = document.getElementById("inicioMes").value;
+    const manha = document.getElementById("horarioManha").value;
+    const tarde = document.getElementById("horarioTarde").value;
+
+    set(ref(db, 'configuracoes'), {
+        inicioMes: inicio,
+        horarioManha: manha,
+        horarioTarde: tarde
+    }).then(() => alert("Configurações atualizadas no Firebase!"));
 }
 
 function marcarPresenca(id){
@@ -610,36 +590,36 @@ function marcarPresenca(id){
     if(!funcionario) return;
 
     const agora = new Date();
-    const hoje = agora.toLocaleDateString("pt-BR");
+    const hoje = agora.toLocaleDateString("pt-BR").replace(/\//g, "-");
     const hora = agora.getHours();
     const horaStr = hora.toString().padStart(2,"0") + ":" + agora.getMinutes().toString().padStart(2,"0");
 
-    if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
-
+    let caminho = `funcionarios/${id}/presencas/${hoje}/`;
+    
     if(hora < 12) {
-        funcionario.presencas[hoje].manha = (horaStr <= horarioManha) ? `Presente às ${horaStr}` : `Atrasado às ${horaStr}`;
+        let status = (horaStr <= horarioManha) ? `Presente às ${horaStr}` : `Atrasado às ${horaStr}`;
+        update(ref(db, caminho), { manha: status });
     } else {
-        funcionario.presencas[hoje].tarde = (horaStr <= horarioTarde) ? `Presente às ${horaStr}` : `Atrasado às ${horaStr}`;
+        let status = (horaStr <= horarioTarde) ? `Presente às ${horaStr}` : `Atrasado às ${horaStr}`;
+        update(ref(db, caminho), { tarde: status });
     }
-    salvarDados(); renderFuncionarios();
 }
 
-function lancarFaltaManual(id){
+function lancarFaltaManual(id) {
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
     const opcao = prompt(`Falta para ${funcionario.nome}:\n1 - Manhã\n2 - Tarde\n3 - Ambos`);
     if(!opcao) return;
 
-    const hoje = new Date().toLocaleDateString("pt-BR");
-    if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
+    const hoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
+    let caminho = `funcionarios/${id}/presencas/${hoje}/`;
 
-    if(opcao === "1") funcionario.presencas[hoje].manha = "Falta";
-    else if(opcao === "2") funcionario.presencas[hoje].tarde = "Falta";
-    else if(opcao === "3") { funcionario.presencas[hoje].manha = "Falta"; funcionario.presencas[hoje].tarde = "Falta"; }
-    salvarDados(); renderFuncionarios();
+    if(opcao === "1") update(ref(db, caminho), { manha: "Falta" });
+    else if(opcao === "2") update(ref(db, caminho), { tarde: "Falta" });
+    else if(opcao === "3") update(ref(db, caminho), { manha: "Falta", tarde: "Falta" });
 }
 
-function justificarFalta(id){
+function justificarFalta(id) {
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
     const opcao = prompt(`Justificar para ${funcionario.nome}:\n1 - Manhã\n2 - Tarde\n3 - Ambos`);
@@ -647,20 +627,22 @@ function justificarFalta(id){
     const motivo = prompt("Digite o motivo:");
     if(!motivo) return;
 
-    const hoje = new Date().toLocaleDateString("pt-BR");
-    if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
-    if(!funcionario.justificativas[hoje]) funcionario.justificativas[hoje] = { manha: null, tarde: null };
-
+    const hoje = new Date().toLocaleDateString("pt-BR").replace(/\//g, "-");
     const txt = motivo.trim();
-    if(opcao === "1" || opcao === "3") { funcionario.justificativas[hoje].manha = txt; funcionario.presencas[hoje].manha = "Falta"; }
-    if(opcao === "2" || opcao === "3") { funcionario.justificativas[hoje].tarde = txt; funcionario.presencas[hoje].tarde = "Falta"; }
-    salvarDados(); renderFuncionarios();
+
+    if(opcao === "1" || opcao === "3") {
+        update(ref(db, `funcionarios/${id}/justificativas/${hoje}/`), { manha: txt });
+        update(ref(db, `funcionarios/${id}/presencas/${hoje}/`), { manha: "Falta" });
+    }
+    if(opcao === "2" || opcao === "3") {
+        update(ref(db, `funcionarios/${id}/justificativas/${hoje}/`), { tarde: txt });
+        update(ref(db, `funcionarios/${id}/presencas/${hoje}/`), { tarde: "Falta" });
+    }
 }
 
 function excluirFuncionario(id){
-    if(confirm("Deseja excluir este funcionário?")) {
-        funcionarios = funcionarios.filter(f => f.id !== id);
-        salvarDados(); renderFuncionarios();
+    if(confirm("Deseja realmente excluir este funcionário do banco de dados?")) {
+        remove(ref(db, `funcionarios/${id}`)).then(() => alert("Funcionário excluído!"));
     }
 }
 
@@ -694,24 +676,105 @@ function baixarCracha(id){
 function exportarExcel(){
     let csv = "\ufeffNome,Categoria,Cargo,Data,Turno,Status,Justificativa\n";
     funcionarios.forEach(funcionario => {
-        const datas = new Set([...Object.keys(funcionario.presencas), ...Object.keys(funcionario.justificativas)]);
+        const pDatas = funcionario.presencas ? Object.keys(funcionario.presencas) : [];
+        const jDatas = funcionario.justificativas ? Object.keys(funcionario.justificativas) : [];
+        
+        const datas = new Set([...pDatas, ...jDatas]);
         datas.forEach(data => {
-            const p = funcionario.presencas[data] || { manha: null, tarde: null };
-            const j = funcionario.justificativas[data] || { manha: null, tarde: null };
-            if (p.manha || j.manha) csv += `"${funcionario.nome}","${funcionario.categoria}","${funcionario.cargo}","${data}","Manhã","${p.manha || 'Falta'}","${j.manha || ""}"\n`;
-            if (p.tarde || j.tarde) csv += `"${funcionario.nome}","${funcionario.categoria}","${funcionario.cargo}","${data}","Tarde","${p.tarde || 'Falta'}","${j.tarde || ""}"\n`;
+            const dataFormatada = data.replace(/-/g, "/");
+            const p = funcionario.presencas && funcionario.presencas[data] ? funcionario.presencas[data] : { manha: null, tarde: null };
+            const j = funcionario.justificativas && funcionario.justificativas[data] ? funcionario.justificativas[data] : { manha: null, tarde: null };
+            
+            if (p.manha || j.manha) csv += `"${funcionario.nome}","${funcionario.categoria}","${funcionario.cargo}","${dataFormatada}","Manhã","${p.manha || 'Falta'}","${j.manha || ""}"\n`;
+            if (p.tarde || j.tarde) csv += `"${funcionario.nome}","${funcionario.categoria}","${funcionario.cargo}","${dataFormatada}","Tarde","${p.tarde || 'Falta'}","${j.tarde || ""}"\n`;
         });
     });
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob); link.download = "relatorio_geral_por_chamada.csv"; link.click();
+    link.href = URL.createObjectURL(blob); link.download = "relatorio_firebase_chamada.csv"; link.click();
 }
+
+function ligarCamera() {
+    if (html5QrCode && html5QrCode.isScanning) desligarCamera();
+    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess).catch(() => {
+        Html5Qrcode.getCameras().then(devices => {
+            if(devices?.length) html5QrCode.start(devices[0].id, { fps: 10, qrbox: 250 }, onScanSuccess);
+        });
+    });
+}
+
+function desligarCamera() { if (html5QrCode?.isScanning) html5QrCode.stop(); }
 
 function onScanSuccess(decodedText){
     const funcionario = funcionarios.find(f => `Funcionario-${f.id}` === decodedText);
     if(!funcionario) return alert("QR Code inválido.");
     desligarCamera(); marcarPresenca(funcionario.id);
 }
+
+// Configuração de eventos iniciais (equivalente ao DOMContentLoaded)
+document.getElementById("btnCriarCategoria").onclick = adicionarCategoria;
+document.getElementById("btnSalvarConfig").onclick = ajustarMes;
+document.getElementById("btnExportarExcel").onclick = exportarExcel;
+document.getElementById("btnLigarCamera").onclick = ligarCamera;
+document.getElementById("btnDesligarCamera").onclick = desligarCamera;
+
+html5QrCode = new Html5Qrcode("reader");
+
+const cadastroForm = document.getElementById("cadastroForm");
+cadastroForm.onsubmit = async function(e){
+    e.preventDefault();
+    try {
+        const nome = document.getElementById("nome").value.trim();
+        const cargo = document.getElementById("cargo").value.trim();
+        const catSelected = document.getElementById("selectCategoriaCadastro").value;
+        const fotoInput = document.getElementById("foto");
+
+        if(!fotoInput.files[0]) return alert("Selecione uma foto.");
+
+        const converterEComprimirBase64 = (file) => {
+            return new Promise((resolve) => {
+                const leitor = new FileReader();
+                leitor.readAsDataURL(file);
+                leitor.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width, height = img.height;
+                        if (width > height) { if (width > 200) { height *= 200 / width; width = 200; } }
+                        else { if (height > 200) { width *= 200 / height; height = 200; } }
+                        canvas.width = width; canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.7));
+                    };
+                };
+            });
+        };
+
+        const fotoBase64 = await converterEComprimirBase64(fotoInput.files[0]);
+        const novoId = new Date().getTime();
+
+        const novoFuncionario = {
+            id: novoId,
+            nome: nome,
+            cargo: cargo,
+            categoria: catSelected || "Geral",
+            foto: fotoBase64,
+            presencas: {},
+            justificativas: {}
+        };
+
+        // Salva direto no nó correspondente do Firebase Realtime Database
+        set(ref(db, 'funcionarios/' + novoId), novoFuncionario).then(() => {
+            cadastroForm.reset();
+            alert("Funcionário salvo no Firebase com sucesso!");
+        });
+    } catch(erro) { console.error(erro); }
+};
+
+// Ativa a escuta do banco
+iniciarSincronizacaoFirebase();
 </script>
 </body>
 </html>
