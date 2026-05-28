@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ponto Eletrônico</title>
+    <title>Ponto Eletrônico - Chamadas por Categoria</title>
 
     <style>
         *{
@@ -47,14 +47,32 @@
             margin-bottom:15px;
         }
 
-        input, textarea{
+        label{
+            font-weight: bold;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .row-inputs {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .row-inputs > div {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        input, textarea, select{
             width:100%;
             padding:12px;
-            margin-top:8px;
+            margin-top:6px;
             margin-bottom:15px;
             border:1px solid #ccc;
             border-radius:8px;
             font-size:15px;
+            background: #fff;
         }
 
         button{
@@ -94,6 +112,29 @@
             background: #d4ac0d;
         }
 
+        .btn-filter {
+            background: #bdc3c7;
+            color: #333;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+        .btn-filter.active {
+            background: #4a90e2;
+            color: white;
+            font-weight: bold;
+        }
+
+        .tag-categoria {
+            display: inline-block;
+            background: #e1f0ff;
+            color: #4a90e2;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
         .funcionario{
             display:flex;
             gap:20px;
@@ -125,7 +166,15 @@
             font-size: 14px;
             color: #666;
             font-style: italic;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
+        }
+
+        .status-container {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 5px;
+            font-size: 14px;
         }
 
         .funcionario-actions{
@@ -169,6 +218,33 @@
             margin-top: 15px;
         }
 
+        .input-group-btn {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .tag-lista-geral {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .tag-delete {
+            background: #e74c3c;
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
         @media(max-width:700px){
             .funcionario{
                 flex-direction:column;
@@ -187,38 +263,63 @@
 <body>
 
 <header>
-    Sistema de Ponto Eletrônico
+    Sistema de Ponto Eletrônico por Chamadas
 </header>
 
 <main>
 
     <div class="card">
-        <h2>Configuração</h2>
+        <h2>1. Gerenciar Categorias (Listas de Chamada)</h2>
+        <p style="color:#666; font-size:14px;">Crie as suas listas personalizadas aqui (Ex: Pintores, Garis, Motoristas):</p>
+        
+        <div class="input-group-btn">
+            <div style="flex: 1;">
+                <input type="text" id="novaCategoria" placeholder="Digite o nome da categoria/turma">
+            </div>
+            <button onclick="adicionarCategoria()" class="btn-success" style="margin-bottom: 15px; height: 45px;">Criar Lista</button>
+        </div>
+
+        <label>Suas Categorias Atuais:</label>
+        <div id="listaCategoriasTags" class="tag-lista-geral"></div>
+    </div>
+
+    <div class="card">
+        <h2>2. Configuração Geral de Turnos</h2>
 
         <label>Data de início do ciclo:</label>
         <input type="date" id="inicioMes">
 
-        <label>Horário permitido:</label>
-        <input type="time" id="horarioEntrada" value="08:00">
+        <div class="row-inputs">
+            <div>
+                <label>Limite Entrada Manhã:</label>
+                <input type="time" id="horarioManha" value="08:00">
+            </div>
+            <div>
+                <label>Limite Entrada Tarde:</label>
+                <input type="time" id="horarioTarde" value="14:00">
+            </div>
+        </div>
 
-        <button onclick="ajustarMes()">Salvar Configuração</button>
-
+        <button onclick="ajustarMes()">Salvar Ciclo e Horários</button>
         <p id="infoMes" style="margin-top:15px;font-weight:bold;"></p>
-
-        <br><br>
-
-        <button onclick="exportarExcel()">Exportar Relatório CSV</button>
+        <br>
+        <button onclick="exportarExcel()">Exportar Relatório CSV Geral</button>
     </div>
 
     <div class="card">
-        <h2>Cadastrar Funcionário</h2>
+        <h2>3. Cadastrar Funcionário</h2>
 
         <form id="cadastroForm">
             <label>Nome:</label>
             <input type="text" id="nome" required>
 
             <label>Cargo:</label>
-            <input type="text" id="cargo" placeholder="Ex: Analista de RH" required>
+            <input type="text" id="cargo" placeholder="Ex: Pintor Oficial" required>
+
+            <label>Definir Lista de Chamada (Categoria):</label>
+            <select id="selectCategoriaCadastro" required>
+                <option value="">-- Selecione uma Categoria --</option>
+            </select>
 
             <label>Foto:</label>
             <input type="file" id="foto" accept="image/*" required>
@@ -228,13 +329,19 @@
     </div>
 
     <div class="card">
-        <h2>Funcionários</h2>
+        <h2>4. Listas de Frequência</h2>
+        <p style="color:#666; font-size:14px; margin-bottom: 10px;">Clique nos botões para abrir a chamada da categoria desejada:</p>
+        
+        <div id="filtrosCategoriasContainer"></div>
+        
+        <hr style="margin: 15px 0; border: 0; border-top: 1px solid #eee;">
+        
         <div id="listaFuncionarios"></div>
     </div>
 
     <div class="card">
-        <h2>Escanear QR Code</h2>
-        <p style="text-align: center; color: #666;">Clique no botão abaixo para ativar a câmera do dispositivo e registrar o ponto.</p>
+        <h2>5. Escanear QR Code</h2>
+        <p style="text-align: center; color: #666;">Clique no botão abaixo para ativar a câmera do dispositivo e registrar o ponto do turno atual.</p>
         
         <div class="camera-controls">
             <button onclick="ligarCamera()" class="btn-success">Abrir Câmera</button>
@@ -245,94 +352,144 @@
     </div>
 
 </main>
-
 <script>
 let funcionarios = [];
+let categorias = ["Geral", "Pintores", "Garis", "Motoristas"];
+let categoriaAtiva = "Geral"; 
 let html5QrCode = null;
 
 try {
     const dadosSalvos = localStorage.getItem("funcionarios");
-    if(dadosSalvos){
-        funcionarios = JSON.parse(dadosSalvos);
-        if(!Array.isArray(funcionarios)){
-            funcionarios = [];
-        }
+    if(dadosSalvos) funcionarios = JSON.parse(dadosSalvos);
+    
+    const categoriasSalvas = localStorage.getItem("categorias");
+    if(categoriasSalvas) {
+        categorias = JSON.parse(categoriasSalvas);
+    } else {
+        localStorage.setItem("categorias", JSON.stringify(categorias));
     }
 } catch(e) {
-    console.error("Erro ao carregar funcionários:", e);
-    funcionarios = [];
+    console.error("Erro ao carregar dados:", e);
 }
 
 let inicioMes = localStorage.getItem("inicioMes") || "";
-let horarioPresenca = localStorage.getItem("horarioPresenca") || "08:00";
+let horarioManha = localStorage.getItem("horarioManha") || "08:00";
+let horarioTarde = localStorage.getItem("horarioTarde") || "14:00";
 
 function salvarDados(){
     try {
         localStorage.setItem("funcionarios", JSON.stringify(funcionarios));
+        localStorage.setItem("categorias", JSON.stringify(categorias));
         localStorage.setItem("inicioMes", inicioMes);
-        localStorage.setItem("horarioPresenca", horarioPresenca);
+        localStorage.setItem("horarioManha", horarioManha);
+        localStorage.setItem("horarioTarde", horarioTarde);
     } catch (e) {
-        console.error(e);
-        alert("Aviso: Limite de armazenamento excedido! Tente usar uma foto menor.");
-        throw e;
+        alert("Aviso: Limite de armazenamento cheio!");
+    }
+}
+
+function renderCategoriasConfig(){
+    const containerTags = document.getElementById("listaCategoriasTags");
+    const selectCadastro = document.getElementById("selectCategoriaCadastro");
+    const containerFiltros = document.getElementById("filtrosCategoriasContainer");
+    
+    containerTags.innerHTML = "";
+    selectCadastro.innerHTML = '<option value="">-- Selecione uma Categoria --</option>';
+    containerFiltros.innerHTML = "";
+
+    if(!categorias.includes("Geral")) categorias.unshift("Geral");
+
+    categorias.forEach(cat => {
+        if(cat !== "Geral") {
+            const span = document.createElement("span");
+            span.className = "tag-categoria";
+            span.innerHTML = `${cat} <span class="tag-delete" onclick="removerCategoria('${cat}')">X</span>`;
+            containerTags.appendChild(span);
+        }
+
+        const opt = document.createElement("option");
+        opt.value = cat;
+        opt.textContent = cat;
+        selectCadastro.appendChild(opt);
+
+        const btn = document.createElement("button");
+        btn.className = `btn-filter ${categoriaAtiva === cat ? 'active' : ''}`;
+        btn.textContent = cat === "Geral" ? "Ver Todos (Geral)" : `Chamada: ${cat}`;
+        btn.onclick = () => {
+            categoriaAtiva = cat;
+            renderCategoriasConfig();
+            renderFuncionarios();
+        };
+        containerFiltros.appendChild(btn);
+    });
+}
+
+function adicionarCategoria(){
+    const input = document.getElementById("novaCategoria");
+    const nomeCat = input.value.trim();
+    
+    if(!nomeCat) return alert("Digite um nome válido para a categoria.");
+    if(categorias.includes(nomeCat)) return alert("Esta categoria já existe.");
+
+    categorias.push(nomeCat);
+    salvarDados();
+    input.value = "";
+    renderCategoriasConfig();
+}
+
+function removerCategoria(nomeCat){
+    if(confirm(`Tem certeza que deseja apagar a categoria "${nomeCat}"? Os funcionários dela voltarão para a categoria "Geral".`)){
+        funcionarios.forEach(f => {
+            if(f.categoria === nomeCat) f.categoria = "Geral";
+        });
+        categorias = categorias.filter(c => c !== nomeCat);
+        if(categoriaAtiva === nomeCat) categoriaAtiva = "Geral";
+        salvarDados();
+        renderCategoriasConfig();
+        renderFuncionarios();
     }
 }
 
 function ajustarMes(){
     inicioMes = document.getElementById("inicioMes").value;
-    horarioPresenca = document.getElementById("horarioEntrada").value;
-
+    horarioManha = document.getElementById("horarioManha").value;
+    horarioTarde = document.getElementById("horarioTarde").value;
     salvarDados();
     atualizarInfoMes();
-
-    alert("Configuração salva com sucesso!");
+    alert("Configuração salva!");
 }
 
 function atualizarInfoMes() {
     const infoMes = document.getElementById("infoMes");
     if(inicioMes){
-        infoMes.innerHTML = `
-            Ciclo iniciado em: <strong>${inicioMes.split('-').reverse().join('/')}</strong><br>
-            Horário permitido: <strong>${horarioPresenca}</strong>
-        `;
+        infoMes.innerHTML = `Ciclo: <strong>${inicioMes.split('-').reverse().join('/')}</strong> | Manhã: <strong>${horarioManha}</strong> | Tarde: <strong>${horarioTarde}</strong>`;
     } else {
-        infoMes.innerHTML = "Nenhum ciclo configurado ainda.";
+        infoMes.innerHTML = "Nenhum ciclo configurado.";
     }
 }
 
 document.addEventListener("DOMContentLoaded", function(){
     if(inicioMes) document.getElementById("inicioMes").value = inicioMes;
-    if(horarioPresenca) document.getElementById("horarioEntrada").value = horarioPresenca;
+    if(horarioManha) document.getElementById("horarioManha").value = horarioManha;
+    if(horarioTarde) document.getElementById("horarioTarde").value = horarioTarde;
     atualizarInfoMes();
 
     html5QrCode = new Html5Qrcode("reader");
+    renderCategoriasConfig();
 
     const cadastroForm = document.getElementById("cadastroForm");
     cadastroForm.onsubmit = async function(e){
         e.preventDefault();
-
         try {
-            const nomeInput = document.getElementById("nome");
-            const cargoInput = document.getElementById("cargo");
+            const nome = document.getElementById("nome").value.trim();
+            const cargo = document.getElementById("cargo").value.trim();
+            const catSelected = document.getElementById("selectCategoriaCadastro").value;
             const fotoInput = document.getElementById("foto");
-            
-            const nome = nomeInput.value.trim();
-            const cargo = cargoInput.value.trim();
 
-            if(nome.length === 0 || cargo.length === 0){
-                alert("Preencha todos os campos corretamente.");
-                return false;
-            }
-
-            if(!fotoInput.files || fotoInput.files.length === 0){
-                alert("Selecione uma foto.");
-                return false;
-            }
-
-            const arquivo = fotoInput.files[0];
+            if(!fotoInput.files[0]) return alert("Selecione uma foto.");
 
             const converterEComprimirBase64 = (file) => {
-                return new Promise((resolve, reject) => {
+                return new Promise((resolve) => {
                     const leitor = new FileReader();
                     leitor.readAsDataURL(file);
                     leitor.onload = (event) => {
@@ -340,47 +497,25 @@ document.addEventListener("DOMContentLoaded", function(){
                         img.src = event.target.result;
                         img.onload = () => {
                             const canvas = document.createElement('canvas');
-                            const MAX_WIDTH = 200;
-                            const MAX_HEIGHT = 200;
-                            let width = img.width;
-                            let height = img.height;
-
-                            if (width > height) {
-                                if (width > MAX_WIDTH) {
-                                    height *= MAX_WIDTH / width;
-                                    width = MAX_WIDTH;
-                                }
-                            } else {
-                                if (height > MAX_HEIGHT) {
-                                    width *= MAX_HEIGHT / height;
-                                    height = MAX_HEIGHT;
-                                }
-                            }
-
-                            canvas.width = width;
-                            canvas.height = height;
+                            let width = img.width, height = img.height;
+                            if (width > height) { if (width > 200) { height *= 200 / width; width = 200; } }
+                            else { if (height > 200) { width *= 200 / height; height = 200; } }
+                            canvas.width = width; canvas.height = height;
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0, width, height);
-                            const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                            resolve(dataUrl);
+                            resolve(canvas.toDataURL('image/jpeg', 0.7));
                         };
                     };
-                    leitor.onerror = error => reject(error);
                 });
             };
 
-            let fotoBase64 = "";
-            try {
-                fotoBase64 = await converterEComprimirBase64(arquivo);
-            } catch(e) {
-                alert("Erro ao processar a foto.");
-                return false;
-            }
+            const fotoBase64 = await converterEComprimirBase64(fotoInput.files[0]);
 
             const novoFuncionario = {
                 id: new Date().getTime(),
                 nome: nome,
                 cargo: cargo,
+                categoria: catSelected || "Geral",
                 foto: fotoBase64,
                 presencas: {},
                 justificativas: {}
@@ -390,223 +525,164 @@ document.addEventListener("DOMContentLoaded", function(){
             salvarDados();
             renderFuncionarios();
             cadastroForm.reset();
-
-            alert("Funcionário cadastrado com sucesso!");
-        } catch(erro) {
-            console.error(erro);
-        }
-        return false;
+            alert("Funcionário cadastrado!");
+        } catch(erro) { console.error(erro); }
     };
 
     renderFuncionarios();
 });
 
 function ligarCamera() {
-    if (html5QrCode && html5QrCode.isScanning) {
-        desligarCamera();
-    }
-
-    html5QrCode.start(
-        { facingMode: "environment" }, 
-        { fps: 10, qrbox: 250 },
-        onScanSuccess
-    ).catch(err => {
-        console.warn("Tentando método alternativo de câmera...", err);
+    if (html5QrCode && html5QrCode.isScanning) desligarCamera();
+    html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess).catch(() => {
         Html5Qrcode.getCameras().then(devices => {
-            if(devices && devices.length){
-                html5QrCode.start(
-                    devices[0].id,
-                    { fps: 10, qrbox: 250 },
-                    onScanSuccess
-                ).catch(lastError => {
-                    alert("Erro ao acessar a câmera. Garanta permissão ao site e o uso de HTTPS.");
-                    console.error(lastError);
-                });
-            } else {
-                alert("Nenhuma câmera detectada.");
-            }
-        }).catch(deviceError => {
-            alert("Erro de permissão de mídia.");
-            console.error(deviceError);
+            if(devices?.length) html5QrCode.start(devices[0].id, { fps: 10, qrbox: 250 }, onScanSuccess);
         });
     });
 }
 
-function desligarCamera() {
-    if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(err => console.error("Erro ao parar a câmera: ", err));
-    }
-}
+function desligarCamera() { if (html5QrCode?.isScanning) html5QrCode.stop(); }
 
 function renderFuncionarios(){
     const lista = document.getElementById("listaFuncionarios");
     if (!lista) return;
-
     lista.innerHTML = "";
 
-    if(funcionarios.length === 0){
-        lista.innerHTML = "<p>Nenhum funcionário cadastrado.</p>";
+    const funcionariosFiltrados = funcionarios.filter(f => {
+        if(categoriaAtiva === "Geral") return true; 
+        return f.categoria === categoriaAtiva;
+    });
+
+    if(funcionariosFiltrados.length === 0){
+        lista.innerHTML = `<p style="padding:10px; color:#888;">Nenhum funcionário encontrado na lista de chamada "${categoriaAtiva}".</p>`;
         return;
     }
 
-    funcionarios.forEach(funcionario => {
+    funcionariosFiltrados.forEach(funcionario => {
         const hoje = new Date().toLocaleDateString("pt-BR");
-        let status = "<span class='falta'>Falta</span>";
+        
+        if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
+        if(!funcionario.justificativas[hoje]) funcionario.justificativas[hoje] = { manha: null, tarde: null };
 
-        if(funcionario.presencas[hoje]){
-            status = `<span class='presente'>${funcionario.presencas[hoje]}</span>`;
-        }
+        const p = funcionario.presencas[hoje];
+        const j = funcionario.justificativas[hoje];
 
-        if(funcionario.justificativas[hoje]){
-            status += `<br><span class='justificada'>Justificada: ${funcionario.justificativas[hoje]}</span>`;
-        }
+        let statusManha = p.manha ? `<span class='presente'>${p.manha}</span>` : "<span class='falta'>Falta</span>";
+        if(j.manha) statusManha += ` (<span class='justificada'>Motivo: ${j.manha}</span>)`;
+
+        let statusTarde = p.tarde ? `<span class='presente'>${p.tarde}</span>` : "<span class='falta'>Falta</span>";
+        if(j.tarde) statusTarde += ` (<span class='justificada'>Motivo: ${j.tarde}</span>)`;
 
         const div = document.createElement("div");
         div.className = "funcionario";
 
-        // ADICIONADO: Botão "Lançar Falta Manual" nas ações do funcionário
         div.innerHTML = `
             <img src="${funcionario.foto}" alt="Foto">
             <div class="funcionario-info">
+                <span class="tag-categoria">${funcionario.categoria || 'Geral'}</span>
                 <h3>${funcionario.nome}</h3>
                 <div class="funcionario-cargo">${funcionario.cargo || 'Não informado'}</div>
-                <p>Status de hoje: ${status}</p>
+                <div class="status-container">
+                    <strong>Manhã:</strong> ${statusManha}<br>
+                    <strong>Tarde:</strong> ${statusTarde}
+                </div>
                 <div id="qrcode-${funcionario.id}" class="qrcode-container"></div>
             </div>
             <div class="funcionario-actions">
-                <button onclick="marcarPresenca(${funcionario.id})">Marcar Presença</button>
-                <button onclick="lancarFaltaManual(${funcionario.id})" class="btn-warning">Lançar Falta Manual</button>
-                <button onclick="justificarFalta(${funcionario.id})">Justificar Falta</button>
-                <button onclick="baixarCracha(${funcionario.id})">Baixar Crachá</button>
+                <button onclick="marcarPresenca(${funcionario.id})">Registrar Ponto (Agora)</button>
+                <button onclick="lancarFaltaManual(${funcionario.id})" class="btn-warning">Falta Manual</button>
+                <button onclick="justificarFalta(${funcionario.id})">Justificar</button>
+                <button onclick="baixarCracha(${funcionario.id})">Crachá</button>
                 <button onclick="excluirFuncionario(${funcionario.id})" class="btn-danger">Excluir</button>
             </div>
         `;
-
         lista.appendChild(div);
 
         new QRCode(document.getElementById(`qrcode-${funcionario.id}`), {
-            text: `Funcionario-${funcionario.id}`,
-            width: 100,
-            height: 100
+            text: `Funcionario-${funcionario.id}`, width: 100, height: 100
         });
     });
 }
 
 function marcarPresenca(id){
-    if(!inicioMes){
-        alert("Configure a data de início primeiro.");
-        return;
-    }
-
+    if(!inicioMes) return alert("Configure a data de início primeiro.");
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
 
     const agora = new Date();
     const hoje = agora.toLocaleDateString("pt-BR");
-    const horaAtual = agora.getHours().toString().padStart(2,"0") + ":" + agora.getMinutes().toString().padStart(2,"0");
+    const hora = agora.getHours();
+    const horaStr = hora.toString().padStart(2,"0") + ":" + agora.getMinutes().toString().padStart(2,"0");
 
-    let status = "";
-    if(horaAtual <= horarioPresenca){
-        status = `Presente às ${horaAtual}`;
+    if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
+
+    if(hora < 12) {
+        funcionario.presencas[hoje].manha = (horaStr <= horarioManha) ? `Presente às ${horaStr}` : `Atrasado às ${horaStr}`;
     } else {
-        status = `Atrasado às ${horaAtual}`;
+        funcionario.presencas[hoje].tarde = (horaStr <= horarioTarde) ? `Presente às ${horaStr}` : `Atrasado às ${horaStr}`;
     }
-
-    funcionario.presencas[hoje] = status;
-
-    salvarDados();
-    renderFuncionarios();
-    alert(`Presença registrada para ${funcionario.nome}`);
+    salvarDados(); renderFuncionarios();
 }
 
-// NOVA FUNÇÃO: Lançar falta diretamente sem precisar do QR Code
 function lancarFaltaManual(id){
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
-
-    const confirmar = confirm(`Deseja lançar FALTA manualmente para ${funcionario.nome} hoje?`);
-    if(!confirmar) return;
+    const opcao = prompt(`Falta para ${funcionario.nome}:\n1 - Manhã\n2 - Tarde\n3 - Ambos`);
+    if(!opcao) return;
 
     const hoje = new Date().toLocaleDateString("pt-BR");
-    
-    // Força o status de presença para "Falta"
-    funcionario.presencas[hoje] = "Falta";
+    if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
 
-    salvarDados();
-    renderFuncionarios();
-    alert(`Falta registrada manualmente para ${funcionario.nome}`);
+    if(opcao === "1") funcionario.presencas[hoje].manha = "Falta";
+    else if(opcao === "2") funcionario.presencas[hoje].tarde = "Falta";
+    else if(opcao === "3") { funcionario.presencas[hoje].manha = "Falta"; funcionario.presencas[hoje].tarde = "Falta"; }
+    salvarDados(); renderFuncionarios();
 }
 
 function justificarFalta(id){
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
-
-    const justificativa = prompt("Digite a justificativa da falta:");
-    if(justificativa === null) return;
+    const opcao = prompt(`Justificar para ${funcionario.nome}:\n1 - Manhã\n2 - Tarde\n3 - Ambos`);
+    if(!opcao) return;
+    const motivo = prompt("Digite o motivo:");
+    if(!motivo) return;
 
     const hoje = new Date().toLocaleDateString("pt-BR");
-    funcionario.justificativas[hoje] = justificativa.trim() || "Sem justificativa";
+    if(!funcionario.presencas[hoje]) funcionario.presencas[hoje] = { manha: null, tarde: null };
+    if(!funcionario.justificativas[hoje]) funcionario.justificativas[hoje] = { manha: null, tarde: null };
 
-    // Opcional: Garante que o status base do dia seja Falta ao justificar
-    if(!funcionario.presencas[hoje]) {
-        funcionario.presencas[hoje] = "Falta";
-    }
-
-    salvarDados();
-    renderFuncionarios();
-    alert("Falta justificada com sucesso.");
+    const txt = motivo.trim();
+    if(opcao === "1" || opcao === "3") { funcionario.justificativas[hoje].manha = txt; funcionario.presencas[hoje].manha = "Falta"; }
+    if(opcao === "2" || opcao === "3") { funcionario.justificativas[hoje].tarde = txt; funcionario.presencas[hoje].tarde = "Falta"; }
+    salvarDados(); renderFuncionarios();
 }
 
 function excluirFuncionario(id){
-    const confirmar = confirm("Deseja realmente excluir este funcionário?");
-    if(!confirmar) return;
-
-    funcionarios = funcionarios.filter(f => f.id !== id);
-    salvarDados();
-    renderFuncionarios();
-    alert("Funcionário excluído.");
+    if(confirm("Deseja excluir este funcionário?")) {
+        funcionarios = funcionarios.filter(f => f.id !== id);
+        salvarDados(); renderFuncionarios();
+    }
 }
 
 function baixarCracha(id){
     const funcionario = funcionarios.find(f => f.id === id);
     if(!funcionario) return;
-
     const canvas = document.createElement("canvas");
-    canvas.width = 400;
-    canvas.height = 550;
+    canvas.width = 400; canvas.height = 550;
     const ctx = canvas.getContext("2d");
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0,0,400,550);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(0,0,400,550);
+    ctx.fillStyle = "#4a90e2"; ctx.fillRect(0,0,400,70);
+    ctx.fillStyle = "white"; ctx.font = "bold 28px Arial"; ctx.textAlign = "center"; ctx.fillText("CRACHÁ",200,45);
 
-    ctx.fillStyle = "#4a90e2";
-    ctx.fillRect(0,0,400,70);
-
-    ctx.fillStyle = "white";
-    ctx.font = "bold 28px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("CRACHÁ",200,45);
-
-    const foto = new Image();
-    foto.src = funcionario.foto;
-
+    const foto = new Image(); foto.src = funcionario.foto;
     foto.onload = function(){
         ctx.drawImage(foto,125,90,150,150);
-
-        ctx.fillStyle = "#000";
-        ctx.font = "bold 24px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(funcionario.nome,200,285);
-
-        ctx.fillStyle = "#666666";
-        ctx.font = "italic 18px Arial";
-        ctx.fillText(funcionario.cargo || "Funcionário", 200, 315);
+        ctx.fillStyle = "#000"; ctx.font = "bold 24px Arial"; ctx.textAlign = "center"; ctx.fillText(funcionario.nome,200,285);
+        ctx.fillStyle = "#666666"; ctx.font = "italic 18px Arial"; ctx.fillText(`${funcionario.cargo} (${funcionario.categoria})`, 200, 315);
 
         const qrCanvas = document.querySelector(`#qrcode-${funcionario.id} canvas`) || document.querySelector(`#qrcode-${funcionario.id} img`);
-
-        if(qrCanvas){
-            ctx.drawImage(qrCanvas,150,355,100,100);
-        }
+        if(qrCanvas) ctx.drawImage(qrCanvas,150,355,100,100);
 
         const link = document.createElement("a");
         link.download = `${funcionario.nome}_cracha.png`;
@@ -616,38 +692,26 @@ function baixarCracha(id){
 }
 
 function exportarExcel(){
-    let csv = "\ufeffNome,Cargo,Data,Status,Justificativa\n";
-
+    let csv = "\ufeffNome,Categoria,Cargo,Data,Turno,Status,Justificativa\n";
     funcionarios.forEach(funcionario => {
-        for(let data in funcionario.presencas){
-            csv += `"${funcionario.nome}","${funcionario.cargo || ""}","${data}","${funcionario.presencas[data]}","${funcionario.justificativas[data] || ""}"\n`;
-        }
-        for(let data in funcionario.justificativas){
-            if(!funcionario.presencas[data]){
-                csv += `"${funcionario.nome}","${funcionario.cargo || ""}","${data}","Falta","${funcionario.justificativas[data]}"\n`;
-            }
-        }
+        const datas = new Set([...Object.keys(funcionario.presencas), ...Object.keys(funcionario.justificativas)]);
+        datas.forEach(data => {
+            const p = funcionario.presencas[data] || { manha: null, tarde: null };
+            const j = funcionario.justificativas[data] || { manha: null, tarde: null };
+            if (p.manha || j.manha) csv += `"${funcionario.nome}","${funcionario.categoria}","${funcionario.cargo}","${data}","Manhã","${p.manha || 'Falta'}","${j.manha || ""}"\n`;
+            if (p.tarde || j.tarde) csv += `"${funcionario.nome}","${funcionario.categoria}","${funcionario.cargo}","${data}","Tarde","${p.tarde || 'Falta'}","${j.tarde || ""}"\n`;
+        });
     });
-
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "relatorio_ponto.csv";
-    link.click();
+    link.href = URL.createObjectURL(blob); link.download = "relatorio_geral_por_chamada.csv"; link.click();
 }
 
 function onScanSuccess(decodedText){
     const funcionario = funcionarios.find(f => `Funcionario-${f.id}` === decodedText);
-
-    if(!funcionario){
-        alert("QR Code inválido ou funcionário não cadastrado.");
-        return;
-    }
-
-    desligarCamera();
-    marcarPresenca(funcionario.id);
+    if(!funcionario) return alert("QR Code inválido.");
+    desligarCamera(); marcarPresenca(funcionario.id);
 }
 </script>
-
 </body>
 </html>
